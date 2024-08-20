@@ -13,7 +13,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/joeig/go-powerdns/v3"
@@ -30,35 +29,21 @@ import (
 var _ = Describe("Zone Controller", func() {
 
 	const (
-		resourceName         = "example1.org"
-		resourceKind         = "Native"
-		modifiedResourceKind = "Master"
+		resourceName = "example1.org"
+		resourceKind = "Native"
 
 		timeout  = time.Second * 10
 		interval = time.Millisecond * 250
 	)
 	resourceNameservers := []string{"ns1.example1.org", "ns2.example1.org"}
-	slices.Sort(resourceNameservers)
-	modifiedResourceNameservers := []string{"ns1.example1.org", "ns2.example1.org", "ns3.example1.org"}
-	slices.Sort(modifiedResourceNameservers)
 
-	recreationResourceName := "example3.org"
-	recreationResourceKind := "Native"
-	recreationResourceNameservers := []string{"ns1.example3.org", "ns2.example3.org"}
-	slices.Sort(recreationResourceNameservers)
-
-	fakeResourceName := "fake.org"
-	fakeResourceKind := "Native"
-	fakeResourceNameservers := []string{"ns1.fake.org", "ns2.fake.org"}
-	slices.Sort(fakeResourceNameservers)
-
-	ctx := context.Background()
 	typeNamespacedName := types.NamespacedName{
 		Name: resourceName,
 	}
 
 	BeforeEach(func() {
 		By("creating the zone resource")
+		ctx := context.Background()
 		resource := &dnsv1alpha1.Zone{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: resourceName,
@@ -73,9 +58,12 @@ var _ = Describe("Zone Controller", func() {
 			return nil
 		})
 		Expect(err).NotTo(HaveOccurred())
+		// Waiting for the resource to be fully created
+		time.Sleep(500 * time.Millisecond)
 	})
 
 	AfterEach(func() {
+		ctx := context.Background()
 		resource := &dnsv1alpha1.Zone{}
 		err := k8sClient.Get(ctx, typeNamespacedName, resource)
 		Expect(err).NotTo(HaveOccurred())
@@ -84,18 +72,24 @@ var _ = Describe("Zone Controller", func() {
 		Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 
 		By("Verifying the resource has been deleted")
+		// Waiting for the resource to be fully deleted
+		time.Sleep(500 * time.Millisecond)
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			return errors.IsNotFound(err)
 		}).Should(BeTrue())
+		// Confirm that resource is deleted in the backend
+		Eventually(func() bool {
+			_, found := zones[makeCanonical(resource.Name)]
+			return found
+		}, timeout, interval).Should(BeFalse())
 	})
 
 	Context("When existing resource", func() {
 		It("should successfully retrieve the resource", Label("zone-initialization"), func() {
+			ctx := context.Background()
 			By("Getting the existing resource")
 			zone := &dnsv1alpha1.Zone{}
-			// Waiting for the resource to be fully created
-			time.Sleep(1 * time.Second)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, zone)
 				return err == nil
@@ -109,10 +103,12 @@ var _ = Describe("Zone Controller", func() {
 
 	Context("When existing resource", func() {
 		It("should successfully modify the nameservers of the zone", Label("zone-modification", "nameservers"), func() {
+			ctx := context.Background()
+			// Specific test variables
+			modifiedResourceNameservers := []string{"ns1.example1.org", "ns2.example1.org", "ns3.example1.org"}
+
 			By("Getting the initial Serial of the resource")
 			zone := &dnsv1alpha1.Zone{}
-			// Waiting for the resource to be fully created
-			time.Sleep(1 * time.Second)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, zone)
 				return err == nil
@@ -134,7 +130,7 @@ var _ = Describe("Zone Controller", func() {
 			By("Getting the modified resource")
 			modifiedZone := &dnsv1alpha1.Zone{}
 			// Waiting for the resource to be fully modified
-			time.Sleep(1 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, modifiedZone)
 				return err == nil
@@ -148,10 +144,12 @@ var _ = Describe("Zone Controller", func() {
 
 	Context("When existing resource", func() {
 		It("should successfully modify the kind of the zone", Label("zone-modification", "kind"), func() {
+			ctx := context.Background()
+			// Specific test variables
+			var modifiedResourceKind = []string{"Master", "Native", "Slave", "Producer", "Consumer"}
+
 			By("Getting the initial Serial of the resource")
 			zone := &dnsv1alpha1.Zone{}
-			// Waiting for the resource to be fully created
-			time.Sleep(1 * time.Second)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, zone)
 				return err == nil
@@ -166,7 +164,6 @@ var _ = Describe("Zone Controller", func() {
 			}
 
 			// Update the resource for each kind and ensure the serial is incremented
-			var modifiedResourceKind = []string{"Master", "Native", "Slave", "Producer", "Consumer"}
 			for i, kind := range modifiedResourceKind {
 				_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, resource, func() error {
 					resource.Spec.Kind = kind
@@ -177,7 +174,7 @@ var _ = Describe("Zone Controller", func() {
 				By("Getting the modified resource")
 				modifiedZone := &dnsv1alpha1.Zone{}
 				// Waiting for the resource to be fully modified
-				time.Sleep(1 * time.Second)
+				time.Sleep(500 * time.Millisecond)
 				Eventually(func() bool {
 					err := k8sClient.Get(ctx, typeNamespacedName, modifiedZone)
 					return err == nil
@@ -188,11 +185,16 @@ var _ = Describe("Zone Controller", func() {
 				Expect(*(modifiedZone.Status.Serial)).To(Equal(expectedSerial), "Serial should be incremented")
 			}
 		})
-
 	})
 
 	Context("When existing resource", func() {
 		It("should successfully recreate an existing zone", Label("zone-recreation"), func() {
+			ctx := context.Background()
+			// Specific test variables
+			recreationResourceName := "example3.org"
+			recreationResourceKind := "Native"
+			recreationResourceNameservers := []string{"ns1.example3.org", "ns2.example3.org"}
+
 			By("Creating a Zone directly in the mock")
 			// Serial initialization
 			now := time.Now().UTC()
@@ -225,7 +227,7 @@ var _ = Describe("Zone Controller", func() {
 				Name: recreationResourceName,
 			}
 			// Waiting for the resource to be fully modified
-			time.Sleep(1 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, updatedZone)
 				return err == nil
@@ -239,8 +241,9 @@ var _ = Describe("Zone Controller", func() {
 
 	Context("When existing resource", func() {
 		It("should successfully modify a deleted zone", Label("zone-modification-after-deletion"), func() {
-			// Waiting for the resource to be fully created
-			time.Sleep(1 * time.Second)
+			ctx := context.Background()
+			// Specific test variables
+			modifiedResourceNameservers := []string{"ns1.example1.org", "ns2.example1.org", "ns3.example1.org"}
 
 			By("Deleting a Zone directly in the mock")
 			delete(zones, makeCanonical(resourceName))
@@ -262,7 +265,7 @@ var _ = Describe("Zone Controller", func() {
 			By("Getting the resource")
 			updatedZone := &dnsv1alpha1.Zone{}
 			// Waiting for the resource to be fully modified
-			time.Sleep(1 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, typeNamespacedName, updatedZone)
 				return err == nil
@@ -274,7 +277,11 @@ var _ = Describe("Zone Controller", func() {
 
 	Context("When existing resource", func() {
 		It("should successfully delete a deleted zone", Label("zone-deletion-after-deletion"), func() {
+			ctx := context.Background()
 			By("Creating a Zone")
+			fakeResourceName := "fake.org"
+			fakeResourceKind := "Native"
+			fakeResourceNameservers := []string{"ns1.fake.org", "ns2.fake.org"}
 			fakeResource := &dnsv1alpha1.Zone{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: fakeResourceName,
@@ -291,8 +298,6 @@ var _ = Describe("Zone Controller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Deleting a Zone directly in the mock")
-			// Waiting for the resource to be fully created
-			time.Sleep(1 * time.Second)
 			delete(zones, makeCanonical(fakeResourceName))
 			delete(records, makeCanonical(fakeResourceName))
 
@@ -304,7 +309,7 @@ var _ = Describe("Zone Controller", func() {
 
 			By("Getting the Zone")
 			// Waiting for the resource to be fully deleted
-			time.Sleep(1 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 			fakeTypeNamespacedName := types.NamespacedName{
 				Name: fakeResourceName,
 			}
