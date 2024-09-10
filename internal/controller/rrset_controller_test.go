@@ -14,6 +14,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/joeig/go-powerdns/v3"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -326,6 +327,197 @@ var _ = Describe("RRset Controller", func() {
 			}, timeout, interval).Should(BeTrue())
 			expectedSerial := initialSerial + uint32(1)
 			Expect(*modifiedZone.Status.Serial).To(Equal(expectedSerial), "Serial should be incremented")
+		})
+	})
+
+	Context("When existing resource", func() {
+		It("should successfully recreate an existing rrset", Label("rrset-recreation"), func() {
+			ctx := context.Background()
+			// Specific test variables
+			recreationResourceName := "test2.example2.org"
+			recreationResourceNamespace := "default"
+			recreationResourceTTL := uint32(253)
+			recreationResourceType := "A"
+			recreationResourceComment := "it is an useless comment"
+			recreationZoneRef := zoneName
+			recreationRecord := "127.0.0.3"
+
+			By("Creating a RRset directly in the mock")
+			writeToRecordsMap(makeCanonical(recreationResourceName), &powerdns.RRset{
+				Type: powerdns.RRTypePtr(powerdns.RRType(recreationResourceType)),
+				Name: &recreationResourceName,
+				TTL:  &recreationResourceTTL,
+				Records: []powerdns.Record{
+					{Content: &recreationRecord},
+				},
+				Comments: []powerdns.Comment{
+					{Content: &recreationResourceComment},
+				},
+			})
+
+			By("Recreating a RRset")
+			resource := &dnsv1alpha1.RRset{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      recreationResourceName,
+					Namespace: recreationResourceNamespace,
+				},
+			}
+			resource.SetResourceVersion("")
+			_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, resource, func() error {
+				resource.Spec = dnsv1alpha1.RRsetSpec{
+					Type:    recreationResourceType,
+					TTL:     recreationResourceTTL,
+					Records: []string{recreationRecord},
+					Comment: &recreationResourceComment,
+					ZoneRef: dnsv1alpha1.ZoneRef{
+						Name: recreationZoneRef,
+					},
+				}
+				return nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Getting the resource")
+			updatedRRset := &dnsv1alpha1.RRset{}
+			typeNamespacedName := types.NamespacedName{
+				Name:      recreationResourceName,
+				Namespace: recreationResourceNamespace,
+			}
+			// Waiting for the resource to be fully modified
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, typeNamespacedName, updatedRRset)
+				return err == nil && updatedRRset.Status.LastUpdateTime != nil
+			}, timeout, interval).Should(BeTrue())
+
+			Eventually(func() bool {
+				return getMockedRecordsForType(recreationResourceName, recreationResourceType) != nil
+			}, timeout, interval).Should(BeTrue())
+			Expect(getMockedRecordsForType(recreationResourceName, recreationResourceType)).To(Equal([]string{recreationRecord}))
+
+			Eventually(func() bool {
+				return getMockedTTL(recreationResourceName, recreationResourceType) > uint32(0)
+			}, timeout, interval).Should(BeTrue())
+			Expect(getMockedTTL(recreationResourceName, recreationResourceType)).To(Equal(recreationResourceTTL))
+
+			Eventually(func() bool {
+				return getMockedComment(recreationResourceName, recreationResourceType) != ""
+			}, timeout, interval).Should(BeTrue())
+			Expect(getMockedComment(recreationResourceName, recreationResourceType)).To(Equal(recreationResourceComment))
+		})
+	})
+
+	Context("When existing resource", func() {
+		It("should successfully modify a deleted rrset", Label("rrset-modification-after-deletion"), func() {
+			ctx := context.Background()
+
+			// Specific test variables
+			modifiedResourceTTL := uint32(161)
+			modifiedResourceComment := "it is an useless comment"
+			modifiedResourceRecords := []string{"127.0.0.4"}
+
+			By("Deleting a RRset directly in the mock")
+			// Wait all the reconciliation loop to be done before deleting the mock (backend) Zone && RRSet resources
+			// Otherwise, the resource will be recreated in the mock backend by a 2nd reconciliation loop
+			// Ending up with a Conflict error returned from the PowerDNS client Add() func
+			time.Sleep(2 * time.Second)
+			deleteFromRecordsMap(makeCanonical(resourceName))
+
+			By("Verifying the Records has been deleted in the mock")
+			Eventually(func() bool {
+				_, rrsetFound := readFromRecordsMap(makeCanonical(resourceName))
+				return !rrsetFound
+			}, timeout, interval).Should(BeTrue())
+
+			By("Modifying the deleted RRset")
+			resource := &dnsv1alpha1.RRset{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName,
+					Namespace: resourceNamespace,
+				},
+			}
+			_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, resource, func() error {
+				resource.Spec.TTL = modifiedResourceTTL
+				resource.Spec.Comment = &modifiedResourceComment
+				resource.Spec.Records = modifiedResourceRecords
+				return nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Getting the resource")
+			updatedRRset := &dnsv1alpha1.RRset{}
+			typeNamespacedName := types.NamespacedName{
+				Name:      resourceName,
+				Namespace: resourceNamespace,
+			}
+			// Waiting for the resource to be fully modified
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, typeNamespacedName, updatedRRset)
+				_, rrsetFound := readFromRecordsMap(makeCanonical(resourceName))
+				return err == nil && rrsetFound
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(getMockedRecordsForType(resourceName, resourceType)).To(Equal(modifiedResourceRecords))
+			Expect(getMockedTTL(resourceName, resourceType)).To(Equal(modifiedResourceTTL))
+			Expect(getMockedComment(resourceName, resourceType)).To(Equal(modifiedResourceComment))
+		})
+	})
+
+	Context("When existing resource", func() {
+		It("should successfully delete a deleted rrset", Label("rrset-deletion-after-deletion"), func() {
+			ctx := context.Background()
+
+			By("Creating a RRset")
+			fakeResourceName := "fake.example2.org"
+			fakeResourceNamespace := "default"
+			fakeResourceTTL := uint32(123)
+			fakeResourceType := "A"
+			fakeResourceComment := "it is a fake comment"
+			fakeZoneRef := zoneName
+			fakeRecords := []string{"127.0.0.11", "127.0.0.12"}
+
+			fakeResource := &dnsv1alpha1.RRset{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fakeResourceName,
+					Namespace: fakeResourceNamespace,
+				},
+			}
+			fakeResource.SetResourceVersion("")
+			_, err := controllerutil.CreateOrUpdate(ctx, k8sClient, fakeResource, func() error {
+				fakeResource.Spec = dnsv1alpha1.RRsetSpec{
+					Type:    fakeResourceType,
+					TTL:     fakeResourceTTL,
+					Records: fakeRecords,
+					Comment: &fakeResourceComment,
+					ZoneRef: dnsv1alpha1.ZoneRef{
+						Name: fakeZoneRef,
+					},
+				}
+				return nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Deleting a RRset directly in the mock")
+			// Wait all the reconciliation loop to be done before deleting the mock (backend) Zone && RRSet resources
+			// Otherwise, the resource will be recreated in the mock backend by a 2nd reconciliation loop
+			time.Sleep(2 * time.Second)
+			deleteFromRecordsMap(makeCanonical(fakeResourceName))
+
+			By("Deleting the Zone")
+			Eventually(func() bool {
+				err := k8sClient.Delete(ctx, fakeResource)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			By("Getting the RRset")
+			// Waiting for the resource to be fully deleted
+			fakeTypeNamespacedName := types.NamespacedName{
+				Name:      fakeResourceName,
+				Namespace: fakeResourceNamespace,
+			}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, fakeTypeNamespacedName, fakeResource)
+				return errors.IsNotFound(err)
+			}, timeout, interval).Should(BeTrue())
 		})
 	})
 })
