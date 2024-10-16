@@ -8,6 +8,7 @@ metadata:
 spec:
   comment: nothing to tell
   type: A
+  name: test
   ttl: 300
   records:
     - 1.1.1.1
