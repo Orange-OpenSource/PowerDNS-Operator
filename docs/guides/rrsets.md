@@ -7,6 +7,7 @@ The specification of the `RRset` contains the following fields:
 | Field | Type | Required | Description |
 | ----- | ---- |:--------:| ----------- |
 | type | string | Y | Type of the record (e.g. "A", "PTR", "MX") |
+| name | string | Y | Name of the record |
 | ttl | uint32 | Y | DNS TTL of the records, in seconds
 | records | []string | Y | All records in this Resource Record Set
 | comment | string | N | Comment on RRSet |
@@ -31,6 +32,7 @@ metadata:
 spec:
   comment: nothing to tell
   type: A
+  name: test
   ttl: 300
   records:
     - 1.1.1.1
@@ -38,3 +40,5 @@ spec:
   zoneRef:
     name: helloworld.com
 ```
+
+> Note: The name can be canonical or not.
