@@ -278,6 +278,33 @@ func (m mockRecordsClient) Get(ctx context.Context, domain string, name string, 
 }
 
 func (m mockRecordsClient) Change(ctx context.Context, domain string, name string, recordType powerdns.RRType, ttl uint32, content []string, options ...func(*powerdns.RRset)) error {
+	// Preliminary test - Linked to 'wrong-rrset && wrong-type' test
+	if string(recordType) == "AA" {
+		return &powerdns.Error{
+			StatusCode: 422,
+			Status:     "422 Unprocessable Entity",
+			Message:    "RRset " + name + " IN AA: unknown type given",
+		}
+	}
+
+	// Preliminary test - Linked to 'wrong-rrset && wrong-format' test
+	if string(recordType) == "SRV" && content[0] == strings.TrimSuffix(content[0], ".") {
+		return &powerdns.Error{
+			StatusCode: 422,
+			Status:     "422 Unprocessable Entity",
+			Message:    "Record " + name + "/SRV '" + strings.Join(content, ",") + "': Not in expected format (parsed as '" + strings.Join(content, ",") + ".')",
+		}
+	}
+
+	// Preliminary test - Linked to 'wrong-rrset && unquoted-txt' test
+	if string(recordType) == "TXT" && content[0] == strings.TrimSuffix(content[0], "\"") && content[0] == strings.TrimPrefix(content[0], "\"") {
+		return &powerdns.Error{
+			StatusCode: 422,
+			Status:     "422 Unprocessable Entity",
+			Message:    "Record " + name + "/TXT '" + strings.Join(content, ",") + "': Parsing record content (try 'pdnsutil check-zone'): Data field in DNS should start with quote(\") at position 0 of '" + strings.Join(content, ",") + "'",
+		}
+	}
+
 	var isRRsetIdentical, isNewRRset, ok bool
 	var rrset *powerdns.RRset
 	var comment, specifiedComment string
@@ -359,15 +386,19 @@ func getMockedKind(zoneName string) (result string) {
 	return
 }
 
-func getMockedRecordsForType(rrsetName, rrsetType string) (result []string) {
-	rrset, _ := readFromRecordsMap(makeCanonical(rrsetName))
+func getMockedRecordsForType(rrsetName, rrsetType string) []string {
+	result := []string{}
+	rrset, ok := readFromRecordsMap(makeCanonical(rrsetName))
+	if !ok {
+		return result
+	}
 	if string(*rrset.Type) == rrsetType {
 		for _, r := range rrset.Records {
 			result = append(result, *r.Content)
 		}
 	}
 	slices.Sort(result)
-	return
+	return result
 }
 
 func getMockedTTL(rrsetName, rrsetType string) (result uint32) {
