@@ -14,6 +14,13 @@ var (
 		},
 		[]string{"fqdn", "type", "status", "name", "namespace"},
 	)
+	clusterRrsetsStatusesMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "clusterrrsets_status",
+			Help: "Statuses of ClusterRRsets processed",
+		},
+		[]string{"fqdn", "type", "status", "name"},
+	)
 	zonesStatusesMetric = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "zones_status",
@@ -30,22 +37,42 @@ var (
 	)
 )
 
-func updateRrsetsMetrics(fqdn, rrsetType, rrsetStatus, name, namespace string) {
-	rrsetsStatusesMetric.With(map[string]string{
-		"fqdn":      fqdn,
-		"type":      rrsetType,
-		"status":    rrsetStatus,
-		"name":      name,
-		"namespace": namespace,
-	}).Set(1)
+func updateRrsetsMetrics(fqdn string, gr dnsv1alpha2.GenericRRset) {
+	switch gr.(type) {
+	case *dnsv1alpha2.RRset:
+		rrsetsStatusesMetric.With(map[string]string{
+			"fqdn":      fqdn,
+			"type":      gr.GetSpec().Type,
+			"status":    *gr.GetStatus().SyncStatus,
+			"name":      gr.GetName(),
+			"namespace": gr.GetNamespace(),
+		}).Set(1)
+
+	case *dnsv1alpha2.ClusterRRset:
+		clusterRrsetsStatusesMetric.With(map[string]string{
+			"fqdn":   fqdn,
+			"type":   gr.GetSpec().Type,
+			"status": *gr.GetStatus().SyncStatus,
+			"name":   gr.GetName(),
+		}).Set(1)
+	}
+
 }
-func removeRrsetMetrics(name, namespace string) {
-	rrsetsStatusesMetric.DeletePartialMatch(
-		map[string]string{
-			"namespace": namespace,
-			"name":      name,
-		},
-	)
+func removeRrsetMetrics(gr dnsv1alpha2.GenericRRset) {
+	switch gr.(type) {
+	case *dnsv1alpha2.RRset:
+		rrsetsStatusesMetric.DeletePartialMatch(
+			map[string]string{
+				"namespace": gr.GetNamespace(),
+				"name":      gr.GetName(),
+			},
+		)
+		clusterRrsetsStatusesMetric.DeletePartialMatch(
+			map[string]string{
+				"name": gr.GetName(),
+			},
+		)
+	}
 }
 
 func updateZonesMetrics(gz dnsv1alpha2.GenericZone) {
@@ -82,13 +109,23 @@ func removeZonesMetrics(gz dnsv1alpha2.GenericZone) {
 }
 
 //nolint:unparam
-func getMetricWithLabels(rrsetFQDN, rrsetType, rrsetStatus, rrsetName, rrsetNamespace string) float64 {
+func getRrsetMetricWithLabels(rrsetFQDN, rrsetType, rrsetStatus, rrsetName, rrsetNamespace string) float64 {
 	return testutil.ToFloat64(rrsetsStatusesMetric.With(prometheus.Labels{
 		"fqdn":      rrsetFQDN,
 		"type":      rrsetType,
 		"status":    rrsetStatus,
 		"name":      rrsetName,
 		"namespace": rrsetNamespace,
+	}))
+}
+
+//nolint:unparam
+func getClusterRrsetMetricWithLabels(rrsetFQDN, rrsetType, rrsetStatus, rrsetName string) float64 {
+	return testutil.ToFloat64(clusterRrsetsStatusesMetric.With(prometheus.Labels{
+		"fqdn":   rrsetFQDN,
+		"type":   rrsetType,
+		"status": rrsetStatus,
+		"name":   rrsetName,
 	}))
 }
 

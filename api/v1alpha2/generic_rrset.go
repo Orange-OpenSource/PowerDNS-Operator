@@ -21,73 +21,72 @@ import (
 // +k8s:deepcopy-gen:interfaces=nil
 // +k8s:deepcopy-gen=nil
 
-// GenericZone is a common interface for interacting with ClusterZone
-// or a namespaced Zone.
-type GenericZone interface {
+// GenericRRset is a common interface for interacting with ClusterRRset or a namespaced RRset.
+type GenericRRset interface {
 	runtime.Object
 	metav1.Object
 
 	GetObjectMeta() *metav1.ObjectMeta
 	GetTypeMeta() *metav1.TypeMeta
 
-	GetSpec() *ZoneSpec
-	GetStatus() ZoneStatus
-	SetStatus(status ZoneStatus)
-	Copy() GenericZone
+	GetSpec() *RRsetSpec
+	GetStatus() RRsetStatus
+	SetStatus(status RRsetStatus)
+	Copy() GenericRRset
 }
 
 // +kubebuilder:object:root:false
 // +kubebuilder:object:generate:false
-var _ GenericZone = &Zone{}
+var _ GenericRRset = &RRset{}
 
-func (c *Zone) GetObjectMeta() *metav1.ObjectMeta {
+func (c *RRset) GetObjectMeta() *metav1.ObjectMeta {
 	return &c.ObjectMeta
 }
 
-func (c *Zone) GetTypeMeta() *metav1.TypeMeta {
+func (c *RRset) GetTypeMeta() *metav1.TypeMeta {
 	return &c.TypeMeta
 }
 
-func (c *Zone) GetSpec() *ZoneSpec {
+func (c *RRset) GetSpec() *RRsetSpec {
 	return &c.Spec
 }
 
-func (c *Zone) GetStatus() ZoneStatus {
+func (c *RRset) GetStatus() RRsetStatus {
 	return c.Status
 }
 
-func (c *Zone) SetStatus(status ZoneStatus) {
+func (c *RRset) SetStatus(status RRsetStatus) {
 	c.Status = status
 }
 
-func (c *Zone) Copy() GenericZone {
+func (c *RRset) Copy() GenericRRset {
 	return c.DeepCopy()
 }
 
 // +kubebuilder:object:root:false
 // +kubebuilder:object:generate:false
-var _ GenericZone = &ClusterZone{}
+var _ GenericRRset = &ClusterRRset{}
 
-func (c *ClusterZone) GetObjectMeta() *metav1.ObjectMeta {
+func (c *ClusterRRset) GetObjectMeta() *metav1.ObjectMeta {
 	return &c.ObjectMeta
 }
 
-func (c *ClusterZone) GetTypeMeta() *metav1.TypeMeta {
+func (c *ClusterRRset) GetTypeMeta() *metav1.TypeMeta {
 	return &c.TypeMeta
 }
 
-func (c *ClusterZone) GetSpec() *ZoneSpec {
+func (c *ClusterRRset) GetSpec() *RRsetSpec {
 	return &c.Spec
 }
 
-func (c *ClusterZone) GetStatus() ZoneStatus {
+func (c *ClusterRRset) GetStatus() RRsetStatus {
 	return c.Status
 }
 
-func (c *ClusterZone) SetStatus(status ZoneStatus) {
+func (c *ClusterRRset) SetStatus(status RRsetStatus) {
 	c.Status = status
 }
 
-func (c *ClusterZone) Copy() GenericZone {
+func (c *ClusterRRset) Copy() GenericRRset {
 	return c.DeepCopy()
 }
