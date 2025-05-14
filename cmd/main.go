@@ -1,7 +1,8 @@
 /*
  * Software Name : PowerDNS-Operator
  *
- * SPDX-FileCopyrightText: Copyright (c) Orange Business Services SA
+ * SPDX-FileCopyrightText: Copyright (c) PowerDNS-Operator contributors
+ * SPDX-FileCopyrightText: Copyright (c) 2025 Orange Business Services SA
  * SPDX-License-Identifier: Apache-2.0
  *
  * This software is distributed under the Apache 2.0 License,
@@ -28,11 +29,11 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/orange-opensource/powerdns-operator/internal/controller"
+	"github.com/powerdns-operator/powerdns-operator/internal/controller"
 
 	powerdns "github.com/joeig/go-powerdns/v3"
 
-	dnsv1alpha2 "github.com/orange-opensource/powerdns-operator/api/v1alpha2"
+	dnsv1alpha2 "github.com/powerdns-operator/powerdns-operator/api/v1alpha2"
 	//+kubebuilder:scaffold:imports
 )
 

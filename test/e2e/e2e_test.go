@@ -1,7 +1,8 @@
 /*
  * Software Name : PowerDNS-Operator
  *
- * SPDX-FileCopyrightText: Copyright (c) Orange Business Services SA
+ * SPDX-FileCopyrightText: Copyright (c) PowerDNS-Operator contributors
+ * SPDX-FileCopyrightText: Copyright (c) 2025 Orange Business Services SA
  * SPDX-License-Identifier: Apache-2.0
  *
  * This software is distributed under the Apache 2.0 License,
@@ -18,7 +19,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/orange-opensource/powerdns-operator/test/utils"
+	"github.com/powerdns-operator/powerdns-operator/test/utils"
 )
 
 const namespace = "powerdns-operator-system"

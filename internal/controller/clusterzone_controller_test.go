@@ -1,7 +1,8 @@
 /*
  * Software Name : PowerDNS-Operator
  *
- * SPDX-FileCopyrightText: Copyright (c) Orange Business Services SA
+ * SPDX-FileCopyrightText: Copyright (c) PowerDNS-Operator contributors
+ * SPDX-FileCopyrightText: Copyright (c) 2025 Orange Business Services SA
  * SPDX-License-Identifier: Apache-2.0
  *
  * This software is distributed under the Apache 2.0 License,
@@ -25,7 +26,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	dnsv1alpha2 "github.com/orange-opensource/powerdns-operator/api/v1alpha2"
+	dnsv1alpha2 "github.com/powerdns-operator/powerdns-operator/api/v1alpha2"
 )
 
 var _ = Describe("ClusterZone Controller", func() {
