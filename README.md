@@ -1,3 +1,6 @@
+> [!CAUTION]
+> This repository is an archive, please check the current version on the repository: [powerdns-operator/PowerDNS-Operator](https://github.com/powerdns-operator/PowerDNS-Operator)
+
 # PowerDNS-Operator
 
 **This project is a work in progress and is not yet ready for production use.**
